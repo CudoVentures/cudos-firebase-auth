@@ -1,5 +1,5 @@
 {
-  "name": "cudos-firebase-auth",
+  "name": "cudos-firebase-auth-functions",
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch",
@@ -14,7 +14,7 @@
   },
   "main": "build/index.js",
   "dependencies": {
-    "cudosjs": "^1.1.2",
+    "cudosjs": "file:../cudosjs",
     "firebase-admin": "^10.0.2",
     "firebase-functions": "^3.18.0"
   },
