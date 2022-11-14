@@ -45,48 +45,46 @@ export const getNonceToSign = firebaseFunctions.https.onRequest((req, res) =>
     })
 );
 
-export const verifySignedMessage = firebaseFunctions.https.onRequest(
-    (req, res) =>
-        cors(req, res, async () => {
-            try {
-                if (req.method !== 'POST') {
-                    return res.sendStatus(403);
-                }
+export const verifySignedMessage = firebaseFunctions.https.onRequest((req, res) =>
+    cors(req, res, async () => {
+        try {
+            if (req.method !== 'POST') {
+                return res.sendStatus(403);
+            }
 
-                if (!req.body.address || !req.body.signature || !req.body.chainId || req.body.sequence === null || req.body.sequence === undefined || !req.body.accountNumber) {
-                    return res.sendStatus(400);
-                }
+            if (!req.body.address || !req.body.signature || !req.body.chainId || req.body.sequence === null || req.body.sequence === undefined || !req.body.accountNumber) {
+                return res.sendStatus(400);
+            }
 
-                const address = req.body.address as string;
-                const sig = req.body.signature as StdSignature;
-                const chainId = req.body.chainId as string;
-                const sequence = req.body.sequence as number;
-                const accountNumber = req.body.accountNumber as number;
+            const address = req.body.address as string;
+            const sig = req.body.signature as StdSignature;
+            const chainId = req.body.chainId as string;
+            const sequence = req.body.sequence as number;
+            const accountNumber = req.body.accountNumber as number;
 
-                const userDocRef = firebase.firestore().collection(COLLECTION).doc(address);
-                const userDoc = await userDocRef.get();
-                if (!userDoc.exists) {
-                    console.log('user doc does not exist');
-                    return res.sendStatus(500);
-                }
-
-                const existingNonce = userDoc.data()?.nonce;
-                
-
-                if (!await verifyNonceMsgSigner(sig, address, existingNonce, sequence, accountNumber, chainId)) {
-                    return res.sendStatus(401);
-                }
-
-                await userDocRef.update({
-                    nonce: Math.floor(Math.random() * 1000000).toString(),
-                });
-
-                const firebaseToken: string = await firebase.auth().createCustomToken(address);
-
-                return res.status(200).json({ token: firebaseToken });
-            } catch (err) {
-                console.log(err);
+            const userDocRef = firebase.firestore().collection(COLLECTION).doc(address);
+            const userDoc = await userDocRef.get();
+            if (!userDoc.exists) {
+                console.log('user doc does not exist');
                 return res.sendStatus(500);
             }
-        })
+
+            const existingNonce = userDoc.data()?.nonce;
+
+            if (!await verifyNonceMsgSigner(sig, address, existingNonce, sequence, accountNumber, chainId)) {
+                return res.sendStatus(401);
+            }
+
+            await userDocRef.update({
+                nonce: Math.floor(Math.random() * 1000000).toString(),
+            });
+
+            const firebaseToken: string = await firebase.auth().createCustomToken(address);
+
+            return res.status(200).json({ token: firebaseToken });
+        } catch (err) {
+            console.log(err);
+            return res.sendStatus(500);
+        }
+    })
 );
