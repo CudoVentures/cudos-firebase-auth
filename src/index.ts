@@ -4,7 +4,9 @@ import corsLib from "cors";
 import { StdSignature, verifyNonceMsgSigner } from 'cudosjs'
 
 const COLLECTION = "address-book"!
-const firebase = firebaseAdmin.initializeApp();
+const firebase = firebaseAdmin.initializeApp({
+    serviceAccountId: process.env.SERVICE_ACCOUNT_EMAIL,
+});
 
 const cors = corsLib({
     origin: true,
