@@ -3,11 +3,6 @@ import * as firebaseAdmin from "firebase-admin";
 import corsLib from "cors";
 import { StdSignature, verifyArbitrarySignature } from 'cudosjs'
 
-enum COLLECTION {
-    'presale' = 1,
-    'address-book'
-}
-
 const firebase = firebaseAdmin.initializeApp({
     serviceAccountId: process.env.SERVICE_ACCOUNT_EMAIL,
 });
@@ -23,7 +18,7 @@ export const getNonceToSign = firebaseFunctions.https.onRequest((req, res) =>
                 return res.sendStatus(403);
             }
 
-            if (!req.body.address || !req.body.collection || !COLLECTION[req.body.collection]) {
+            if (!req.body.address || !req.body.collection) {
                 return res.sendStatus(400);
             }
 
@@ -62,8 +57,7 @@ export const verifySignedMessage = firebaseFunctions.https.onRequest((req, res) 
 
             if (!req.body.address ||
                 !req.body.signature ||
-                !req.body.collection ||
-                !COLLECTION[req.body.collection]
+                !req.body.collection
             ) {
                 return res.sendStatus(400);
             }
