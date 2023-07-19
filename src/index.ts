@@ -1,27 +1,32 @@
 import * as firebaseFunctions from "firebase-functions";
 import * as firebaseAdmin from "firebase-admin";
 import corsLib from "cors";
-import { StdSignature, verifyNonceMsgSigner } from 'cudosjs'
+import { StdSignature, verifyArbitrarySignature } from 'cudosjs'
+import { UserRecord } from "firebase-admin/auth";
 
-const COLLECTION = "address-book"!
-const firebase = firebaseAdmin.initializeApp();
+const firebase = firebaseAdmin.initializeApp({
+    serviceAccountId: process.env.SERVICE_ACCOUNT_EMAIL,
+});
 
 const cors = corsLib({
     origin: true,
 });
 
-export const getNonceToSign = firebaseFunctions.https.onRequest((req, res) =>
+export const getNonceToSignV2 = firebaseFunctions.https.onRequest((req, res) =>
     cors(req, res, async () => {
         try {
             if (req.method !== "POST") {
                 return res.sendStatus(403);
             }
 
-            if (!req.body.address) {
+            const userAddress = req.body.address
+            if (!userAddress || !req.body.collection) {
                 return res.sendStatus(400);
             }
 
-            const userDoc = await firebase.firestore().collection(COLLECTION).doc(req.body.address).get();
+            const collection = req.body.collection as string;
+
+            const userDoc = await firebase.firestore().collection(collection).doc(req.body.address).get();
             if (userDoc.exists) {
                 const existingNonce = userDoc.data()?.nonce;
                 return res.status(200).json({ nonce: existingNonce });
@@ -29,11 +34,19 @@ export const getNonceToSign = firebaseFunctions.https.onRequest((req, res) =>
 
             const generatedNonce = Math.floor(Math.random() * 1000000).toString();
 
-            const createdUser = await firebase.auth().createUser({
-                uid: req.body.address,
-            });
-
-            await firebase.firestore().collection(COLLECTION).doc(createdUser.uid).set({
+            let user: UserRecord;
+            try {
+                user = await firebase.auth().getUser(userAddress);
+            } catch (error: any) {
+                if (error.code === 'auth/user-not-found') {
+                    user = await firebase.auth().createUser({
+                        uid: userAddress,
+                    });
+                } else {
+                    throw error;
+                }
+            }
+            await firebase.firestore().collection(collection).doc(user.uid).set({
                 nonce: generatedNonce,
             });
 
@@ -45,24 +58,25 @@ export const getNonceToSign = firebaseFunctions.https.onRequest((req, res) =>
     })
 );
 
-export const verifySignedMessage = firebaseFunctions.https.onRequest((req, res) =>
+export const verifySignedMessageV2 = firebaseFunctions.https.onRequest((req, res) =>
     cors(req, res, async () => {
         try {
             if (req.method !== 'POST') {
                 return res.sendStatus(403);
             }
 
-            if (!req.body.address || !req.body.signature || !req.body.chainId || req.body.sequence === null || req.body.sequence === undefined || !req.body.accountNumber) {
+            if (!req.body.address ||
+                !req.body.signature ||
+                !req.body.collection
+            ) {
                 return res.sendStatus(400);
             }
 
             const address = req.body.address as string;
             const sig = req.body.signature as StdSignature;
-            const chainId = req.body.chainId as string;
-            const sequence = req.body.sequence as number;
-            const accountNumber = req.body.accountNumber as number;
+            const collection = req.body.collection as string;
 
-            const userDocRef = firebase.firestore().collection(COLLECTION).doc(address);
+            const userDocRef = firebase.firestore().collection(collection).doc(address);
             const userDoc = await userDocRef.get();
             if (!userDoc.exists) {
                 console.log('user doc does not exist');
@@ -71,7 +85,7 @@ export const verifySignedMessage = firebaseFunctions.https.onRequest((req, res) 
 
             const existingNonce = userDoc.data()?.nonce;
 
-            if (!await verifyNonceMsgSigner(sig, address, existingNonce, sequence, accountNumber, chainId)) {
+            if (!verifyArbitrarySignature(sig, address, existingNonce)) {
                 return res.sendStatus(401);
             }
 
